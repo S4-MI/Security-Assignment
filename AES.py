@@ -69,6 +69,13 @@ fixed_matrix = np.array([
     [0x03, 0x01, 0x01, 0x02]
 ])
 
+fixed_inverse_matrix = np.array([
+    [0xe, 0xb, 0xd, 0x9],
+    [0x9, 0xe, 0xb, 0xd],
+    [0xd, 0x9, 0xe, 0xb],
+    [0xb, 0xd, 0x9, 0xe],
+])
+
 
 def g(w: list, round_number: int, debug=False):
     if debug:
@@ -158,6 +165,34 @@ def key_expansion(text: str, debug=False):
     return keys
 
 
+def sub_bytes(matrix: np.array):
+    for i in range(4):
+        matrix[i] = [Sbox[x] for x in matrix[i]]
+
+    return matrix
+
+
+def inverse_sub_bytes(matrix: np.array):
+    for i in range(4):
+        matrix[i] = [InvSbox[x] for x in matrix[i]]
+
+    return matrix
+
+
+def shift_rows(matrix: np.array):
+    for i in range(1, 4):
+        matrix[i] = np.roll(matrix[i], -i)
+
+    return matrix
+
+
+def inverse_shift_rows(matrix: np.array):
+    for i in range(1, 4):
+        matrix[i] = np.roll(matrix[i], i)
+
+    return matrix
+
+
 def mix_column(matrix1: np.array, matrix2: np.array):
     result = np.zeros((4, 4), dtype=int)
 
@@ -171,20 +206,6 @@ def mix_column(matrix1: np.array, matrix2: np.array):
     return result % 256
 
 
-def sub_bytes(matrix: np.array):
-    for i in range(4):
-        matrix[i] = [Sbox[x] for x in matrix[i]]
-
-    return matrix
-
-
-def shift_rows(matrix: np.array):
-    for i in range(1, 4):
-        matrix[i] = np.roll(matrix[i], -i)
-
-    return matrix
-
-
 def add_round_key(matrix1: np.array, round_number: int, keys: list):
     key_matrix = np.array(keys[round_number]).reshape(4, 4).T
     return matrix1 ^ key_matrix
@@ -195,7 +216,6 @@ def AES(text: str, key: str, debug=False):
         key += ' ' * (16 - len(key))
 
     key = key[-16:]
-
     keys = key_expansion(key, debug=debug)
 
     hex_text = []
@@ -290,29 +310,113 @@ def AES(text: str, key: str, debug=False):
             val: int = results[-1][j][i]
             cipher_text += chr(val)
 
-    # print('Key: ')
-    # print(f'In Ascii: {key}')
-    # print(f'In Hex: ', end='')
-    # for c in key:
-    #     print(f'{(str(hex(ord(c)))[2:])}', end='')
-    # print('\n')
-
-    # print('Text: ')
-    # print(f'In Ascii: {text}')
-    # print(f'In Hex: ', end='')
-    # for c in text:
-    #     print(f'{(str(hex(ord(c)))[2:])}', end='')
-    # print('\n')
-
-    # print(f'Cipher Text: {cipher_text}')
-    # print(f'In Hex: ', end='')
-    # for i in range(4):
-    #     for j in range(4):
-    #         print(f'{(str(hex(results[-1][j][i]))[2:])}', end='')
-
     return {
         'key': key,
         'text': text,
+        'cipher_text': cipher_text
+    }
+
+
+def InvAES(cipher_text: str, key: str, debug=False):
+    if len(key) < 16:
+        key += ' ' * (16 - len(key))
+
+    key = key[-16:]
+    keys = key_expansion(key)
+
+    if len(cipher_text) < 16:
+        cipher_text += ' ' * (16 - len(cipher_text))
+
+    hex_text = []
+    for i in range(16):
+        hex_text.append(ord(cipher_text[i]))
+
+    text_matrix = np.array(hex_text).reshape(4, 4).T
+    key_matrix_0 = np.array(keys[10]).reshape(4, 4).T
+    result = text_matrix ^ key_matrix_0
+
+    if debug:
+        print_matrix(result)
+        print('')
+
+    results = [result.copy()]
+
+    for i in range(9, 0, -1):
+
+        # inverse shift rows
+        result = inverse_shift_rows(result)
+
+        if debug:
+            print('\nInverse Shift Rows')
+            print_matrix(result)
+
+        # inverse sub bytes
+        result = inverse_sub_bytes(result)
+
+        if debug:
+            print('\nInverse Sub Bytes')
+            print_matrix(result)
+
+        # add round key
+        result = add_round_key(result, i, keys)
+
+        if debug:
+            print('\nAdd Round Key')
+            print_matrix(result)
+
+        # inverse mix columns
+        result = mix_column(fixed_inverse_matrix, result)
+
+        if debug:
+            print('\nInverse Mix Columns')
+            print_matrix(result)
+
+        results.append(result.copy())
+
+    # last round
+    # inverse shift rows
+    result = inverse_shift_rows(result)
+
+    if debug:
+        print('\nInverse Shift Rows')
+        print_matrix(result)
+
+    # inverse sub bytes
+    result = inverse_sub_bytes(result)
+
+    if debug:
+        print('\nInverse Sub Bytes')
+        print_matrix(result)
+
+    # add round key
+    result = add_round_key(result, 0, keys)
+
+    if debug:
+        print('\nAdd Round Key')
+        print_matrix(result)
+
+    results.append(result)
+
+    if debug:
+        print('Round outputs')
+        for i in range(len(results)):
+            print(f'Round {i}:', end=' ')
+            l = []
+            for j in range(4):
+                for k in range(4):
+                    print(f'{get_padded(str(hex(results[i][k][j]))[2:])}', end=' ')
+
+            print('')
+
+    plain_text = ''
+    for i in range(4):
+        for j in range(4):
+            val: int = results[-1][j][i]
+            plain_text += chr(val)
+
+    return {
+        'key': key,
+        'text': plain_text,
         'cipher_text': cipher_text
     }
 
@@ -331,30 +435,140 @@ def encrypt(text: str, key: str, debug=False):
     for c in cipher_texts:
         cipher_text += c
 
+    if debug:
+        print('Key: ')
+        print(f'In Ascii: {key}')
+        print(f'In Hex: ', end='')
+        for c in key:
+            print(f'{(str(hex(ord(c)))[2:])}', end='')
+        print('\n')
+
+        print('Text: ')
+        print(f'In Ascii: {text}')
+        print(f'In Hex: ', end='')
+        for c in text:
+            print(f'{(str(hex(ord(c)))[2:])}', end='')
+        print('\n')
+
+        print(f'Cipher Text: {cipher_text}')
+        print(f'In Hex: ', end='')
+        for c in cipher_text:
+            print(f'{(str(hex(ord(c)))[2:])}', end='')
+
+        print('')
+
+    return {
+        'key': key,
+        'text': text,
+        'cipher_text': cipher_text
+    }
+
+
+def decrypt(cipher_text: str, key: str, debug=False):
+    texts = []
+    for i in range(0, len(cipher_text), 16):
+        texts.append(cipher_text[i:i + 16])
+
+    plain_texts = []
+    for t in texts:
+        res = InvAES(t, key, debug)
+        plain_texts.append(res['text'])
+
+    plain_text = ''
+    for c in plain_texts:
+        plain_text += c
+
+    if debug:
+        print('Key: ')
+        print(f'In Ascii: {key}')
+        print(f'In Hex: ', end='')
+        for c in key:
+            print(f'{(str(hex(ord(c)))[2:])}', end='')
+        print('\n')
+
+        print('Cipher Text: ')
+        print(f'In Ascii: {cipher_text}')
+        print(f'In Hex: ', end='')
+        for c in cipher_text:
+            print(f'{(str(hex(ord(c)))[2:])}', end='')
+        print('\n')
+
+        print(f'Plain Text: {plain_text}')
+        print(f'In Hex: ', end='')
+        for c in plain_text:
+            print(f'{(str(hex(ord(c)))[2:])}', end='')
+        print('')
+
+    return {
+        'key': key,
+        'text': plain_text,
+        'cipher_text': cipher_text
+    }
+
+
+# text = 'Two One Nine Two'
+# key='Thats my Kung Fu'
+
+# key = 'SUST CSE19 Batch'
+# text = 'IsTheirCarnivalSuccessful'
+
+# key='SUST CSE19 Batch'
+# text='YesTheyHaveMadeItAtLast'
+
+# key='BUETCSEVSSUSTCSE'
+# text='BUETnightfallVsSUSTguessforce'
+
+keys = [
+    'Two One Nine Two',
+    'SUST CSE19 Batch',
+    'SUST CSE19 Batch',
+    'BUETCSEVSSUSTCSE'
+]
+
+texts = [
+    'Thats my Kung Fu',
+    'IsTheirCarnivalSuccessful',
+    'YesTheyHaveMadeItAtLast',
+    'BUETnightfallVsSUSTguessforce'
+]
+
+for key, text in zip(keys, texts):
+
     print('Key: ')
-    print(f'In Ascii: {key}')
-    print(f'In Hex: ', end='')
+    print('In Ascii: ', key)
+    print('In Hex: ', end='')
     for c in key:
         print(f'{(str(hex(ord(c)))[2:])}', end='')
     print('\n')
 
     print('Text: ')
-    print(f'In Ascii: {text}')
-    print(f'In Hex: ', end='')
+    print('In Ascii: ', text)
+    print('In Hex: ', end='')
     for c in text:
+        print(f'{(str(hex(ord(c)))[2:])}', end='')
+
+    print('\n')
+
+    result1 = encrypt(text=text, key=key, debug=False)
+    result2 = decrypt(cipher_text=result1['cipher_text'], key=key)
+
+    temp_text = result2['text'].strip()
+
+    print('Cipher Text: ', result1['cipher_text'])
+    print('In Hex: ', end='')
+    for c in result1['cipher_text']:
         print(f'{(str(hex(ord(c)))[2:])}', end='')
     print('\n')
 
-    print(f'Cipher Text: {cipher_text}')
-    print(f'In Hex: ', end='')
-    for c in cipher_text:
+    print('Plain Text: ', temp_text)
+    print('In Hex: ', end='')
+    for c in temp_text:
         print(f'{(str(hex(ord(c)))[2:])}', end='')
+    print('\n')
 
+    if text == temp_text:
+        print('Success')
+    else:
+        print('Failure')
 
-# result = encrypt(text='Two One Nine Two', key='Thats my Kung Fu', debug=False)
-# result = encrypt(key='SUST CSE19 Batch', text='IsTheirCarnivalSuccessful', debug=False)
-result = encrypt(key='SUST CSE19 Batch', text='YesTheyHaveMadeItAtLast', debug=False)
-# result = encrypt(key='BUETCSEVSSUSTCSE', text='BUETnightfallVsSUSTguessforce', debug=False)
-
-
-print('\n155415771458367c11457168f4059d618f1571f8e719bb2fbee5ebd6d3acf')
+    print('---------------------------------------------\n\n')
