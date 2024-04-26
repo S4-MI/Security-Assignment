@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 
 from BitVector_Helper import perform_mix_column
@@ -102,7 +104,7 @@ def g(w: list, round_number: int, debug=False):
 
 
 def key_expansion(text: str, debug=False):
-    # print(f"text len -> {len(text)}")
+    start = time.time()
 
     hex_text = []
     for i in range(16):
@@ -162,7 +164,11 @@ def key_expansion(text: str, debug=False):
                 print(f' {t}', end='')
             print('')
 
-    return keys
+    end = time.time()
+    return {
+        'keys': keys,
+        'time': end - start
+    }
 
 
 def sub_bytes(matrix: np.array):
@@ -211,13 +217,7 @@ def add_round_key(matrix1: np.array, round_number: int, keys: list):
     return matrix1 ^ key_matrix
 
 
-def AES(text: str, key: str, debug=False):
-    if len(key) < 16:
-        key += ' ' * (16 - len(key))
-
-    key = key[-16:]
-    keys = key_expansion(key, debug=debug)
-
+def AES(text: str, f_keys: list, debug=False):
     hex_text = []
 
     if len(text) < 16:
@@ -228,7 +228,7 @@ def AES(text: str, key: str, debug=False):
 
     # create matrix
     text_matrix = np.array(hex_text).reshape(4, 4).T
-    key_matrix_0 = np.array(keys[0]).reshape(4, 4).T
+    key_matrix_0 = np.array(f_keys[0]).reshape(4, 4).T
     result = text_matrix ^ key_matrix_0
 
     if debug:
@@ -261,7 +261,7 @@ def AES(text: str, key: str, debug=False):
 
         # add round key
 
-        result = add_round_key(result, i, keys)
+        result = add_round_key(result, i, f_keys)
 
         if debug:
             print('\nAdd Round Key')
@@ -285,7 +285,7 @@ def AES(text: str, key: str, debug=False):
         print_matrix(result)
 
     # add round key
-    result = add_round_key(result, 10, keys)
+    result = add_round_key(result, 10, f_keys)
 
     results.append(result)
 
@@ -311,19 +311,12 @@ def AES(text: str, key: str, debug=False):
             cipher_text += chr(val)
 
     return {
-        'key': key,
         'text': text,
         'cipher_text': cipher_text
     }
 
 
-def InvAES(cipher_text: str, key: str, debug=False):
-    if len(key) < 16:
-        key += ' ' * (16 - len(key))
-
-    key = key[-16:]
-    keys = key_expansion(key)
-
+def InvAES(cipher_text: str, keys: list, debug=False):
     if len(cipher_text) < 16:
         cipher_text += ' ' * (16 - len(cipher_text))
 
@@ -415,160 +408,104 @@ def InvAES(cipher_text: str, key: str, debug=False):
             plain_text += chr(val)
 
     return {
-        'key': key,
         'text': plain_text,
         'cipher_text': cipher_text
     }
 
 
-def encrypt(text: str, key: str, debug=False):
+def encrypt(text: str, keys: list, debug=False):
+    start = time.time()
+
     texts = []
     for i in range(0, len(text), 16):
         texts.append(text[i:i + 16])
 
     cipher_texts = []
     for t in texts:
-        result = AES(t, key, debug)
+        result = AES(t, keys, debug)
         cipher_texts.append(result['cipher_text'])
 
     cipher_text = ''
     for c in cipher_texts:
         cipher_text += c
 
-    if debug:
-        print('Key: ')
-        print(f'In Ascii: {key}')
-        print(f'In Hex: ', end='')
-        for c in key:
-            print(f'{(str(hex(ord(c)))[2:])}', end='')
-        print('\n')
-
-        print('Text: ')
-        print(f'In Ascii: {text}')
-        print(f'In Hex: ', end='')
-        for c in text:
-            print(f'{(str(hex(ord(c)))[2:])}', end='')
-        print('\n')
-
-        print(f'Cipher Text: {cipher_text}')
-        print(f'In Hex: ', end='')
-        for c in cipher_text:
-            print(f'{(str(hex(ord(c)))[2:])}', end='')
-
-        print('')
-
+    end = time.time()
     return {
-        'key': key,
         'text': text,
-        'cipher_text': cipher_text
+        'cipher_text': cipher_text,
+        'time': end - start
     }
 
 
-def decrypt(cipher_text: str, key: str, debug=False):
+def decrypt(cipher_text: str, keys: list, debug=False):
+    start = time.time()
+
     texts = []
     for i in range(0, len(cipher_text), 16):
         texts.append(cipher_text[i:i + 16])
 
     plain_texts = []
     for t in texts:
-        res = InvAES(t, key, debug)
+        res = InvAES(t, keys, debug)
         plain_texts.append(res['text'])
 
     plain_text = ''
     for c in plain_texts:
         plain_text += c
 
-    if debug:
-        print('Key: ')
-        print(f'In Ascii: {key}')
-        print(f'In Hex: ', end='')
-        for c in key:
-            print(f'{(str(hex(ord(c)))[2:])}', end='')
-        print('\n')
-
-        print('Cipher Text: ')
-        print(f'In Ascii: {cipher_text}')
-        print(f'In Hex: ', end='')
-        for c in cipher_text:
-            print(f'{(str(hex(ord(c)))[2:])}', end='')
-        print('\n')
-
-        print(f'Plain Text: {plain_text}')
-        print(f'In Hex: ', end='')
-        for c in plain_text:
-            print(f'{(str(hex(ord(c)))[2:])}', end='')
-        print('')
-
+    end = time.time()
     return {
-        'key': key,
         'text': plain_text,
-        'cipher_text': cipher_text
+        'cipher_text': cipher_text,
+        'time': end - start
     }
 
 
-# text = 'Two One Nine Two'
-# key='Thats my Kung Fu'
-
-# key = 'SUST CSE19 Batch'
-# text = 'IsTheirCarnivalSuccessful'
-
-# key='SUST CSE19 Batch'
-# text='YesTheyHaveMadeItAtLast'
-
-# key='BUETCSEVSSUSTCSE'
-# text='BUETnightfallVsSUSTguessforce'
-
-keys = [
-    'Two One Nine Two',
-    'SUST CSE19 Batch',
-    'SUST CSE19 Batch',
-    'BUETCSEVSSUSTCSE'
-]
-
-texts = [
-    'Thats my Kung Fu',
-    'IsTheirCarnivalSuccessful',
-    'YesTheyHaveMadeItAtLast',
-    'BUETnightfallVsSUSTguessforce'
-]
-
-for key, text in zip(keys, texts):
-
-    print('Key: ')
-    print('In Ascii: ', key)
-    print('In Hex: ', end='')
+def main():
+    print('Key:')
+    key = input('In ASCII: ')
+    print('In HEX: ', end='')
     for c in key:
         print(f'{(str(hex(ord(c)))[2:])}', end='')
+
     print('\n')
 
-    print('Text: ')
-    print('In Ascii: ', text)
-    print('In Hex: ', end='')
+    if len(key) < 16:
+        key += ' ' * (16 - len(key))
+
+    key = key[-16:]
+    key_expansion_result = key_expansion(key)
+    keys = key_expansion_result['keys']
+
+    print('Plain Text:')
+    text = input('In ASCII: ')
+    print('In HEX: ', end='')
     for c in text:
         print(f'{(str(hex(ord(c)))[2:])}', end='')
+    print('\n')
+
+    encryption_result = encrypt(text, keys)
+    print('Cipher Text:')
+    print(f'In ASCII: {encryption_result["cipher_text"]}')
+    print('In HEX: ', end='')
+    for c in encryption_result['cipher_text']:
+        print(f'{(str(hex(ord(c)))[2:])}', end='')
 
     print('\n')
 
-    result1 = encrypt(text=text, key=key, debug=False)
-    result2 = decrypt(cipher_text=result1['cipher_text'], key=key)
-
-    temp_text = result2['text'].strip()
-
-    print('Cipher Text: ', result1['cipher_text'])
-    print('In Hex: ', end='')
-    for c in result1['cipher_text']:
+    decryption_result = decrypt(encryption_result['cipher_text'], keys)
+    print('Decipher Text:')
+    print(f'In ASCII: {decryption_result["text"]}')
+    print('In HEX: ', end='')
+    for c in decryption_result['text']:
         print(f'{(str(hex(ord(c)))[2:])}', end='')
     print('\n')
 
-    print('Plain Text: ', temp_text)
-    print('In Hex: ', end='')
-    for c in temp_text:
-        print(f'{(str(hex(ord(c)))[2:])}', end='')
-    print('\n')
+    print('Execution Time:')
+    print(f'Key Scheduling: {key_expansion_result["time"]}')
+    print(f'Encryption Time: {encryption_result["time"]}')
+    print(f'Decryption Time: {decryption_result["time"]}')
 
-    if text == temp_text:
-        print('Success')
-    else:
-        print('Failure')
 
-    print('---------------------------------------------\n\n')
+if __name__ == '__main__':
+    main()
