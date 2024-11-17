@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 
-from BitVector_Helper import perform_mix_column
+from BitVector_Helper import matrix_mul
 
 
 def get_padded(text: str):
@@ -79,31 +79,20 @@ fixed_inverse_matrix = np.array([
 ])
 
 
-def g(w: list, round_number: int, debug=False):
-    if debug:
-        print('----------')
-        print_list(w)
+def g(w: list, round_number: int):
     # circular shift left
     w = w[1:] + w[:1]
-
-    if debug:
-        print_list(w)
 
     # byte substitution
     for i in range(4):
         w[i] = Sbox[w[i]]
 
-    if debug:
-        print_list(w)
-
     w[0] ^= round_constants[round_number]
 
-    if debug:
-        print_list(w)
     return w
 
 
-def key_expansion(text: str, debug=False):
+def key_expansion(text: str):
     start = time.time()
 
     hex_text = []
@@ -115,54 +104,20 @@ def key_expansion(text: str, debug=False):
     for r in range(11):
 
         if r == 0:
-            if debug:
-                print(f"Words: ")
-                for x in words:
-                    print(str(hex(x))[2:], end=' ')
-                print('')
             keys.append(words)
         else:
             temp = list(words.copy())
             last = list(temp[-4:])
 
-            if debug:
-                print_list(last)
             x = g(last, r - 1)
 
-            if debug:
-                print_list(x)
-
             temp += list(x ^ np.array(temp[-16:-12]))
-            if debug:
-                print(f'Temp: ')
-                print_list(temp)
             temp += list(np.array(temp[-4:]) ^ np.array(temp[-16:-12]))
             temp += list(np.array(temp[-4:]) ^ np.array(temp[-16:-12]))
             temp += list(np.array(temp[-4:]) ^ np.array(temp[-16:-12]))
-
-            if debug:
-                print(f'Temp: ')
-                print_list(temp)
 
             words = temp[16:]
-            if debug:
-                print(f"Words: ")
-                for x in words:
-                    print(str(hex(x))[2:], end=' ')
             keys.append(words)
-
-    if debug:
-        print(f"Keys: ")
-
-    if debug:
-        for i, key in enumerate(keys):
-            print(f'Round {i}', end=' :')
-            for x in key:
-                t = str(hex(x))[2:]
-                if len(t) == 1:
-                    t = '0' + t
-                print(f' {t}', end='')
-            print('')
 
     end = time.time()
     return {
@@ -204,7 +159,7 @@ def mix_column(matrix1: np.array, matrix2: np.array):
 
     for i in range(4):
         for j in range(4):
-            result[i][j] = perform_mix_column(
+            result[i][j] = matrix_mul(
                 [f'{str(hex(x))[2:]}' for x in matrix1[i]],
                 [f'{str(hex(x))[2:]}' for x in matrix2[:, j]]
             )
@@ -217,7 +172,7 @@ def add_round_key(matrix1: np.array, round_number: int, keys: list):
     return matrix1 ^ key_matrix
 
 
-def AES(text: str, f_keys: list, debug=False):
+def AES(text: str, keys: list):
     hex_text = []
 
     if len(text) < 16:
@@ -228,12 +183,10 @@ def AES(text: str, f_keys: list, debug=False):
 
     # create matrix
     text_matrix = np.array(hex_text).reshape(4, 4).T
-    key_matrix_0 = np.array(f_keys[0]).reshape(4, 4).T
-    result = text_matrix ^ key_matrix_0
+    key_matrix_0 = np.array(keys[0]).reshape(4, 4).T
 
-    if debug:
-        print_matrix(result)
-        print('')
+    # add round key
+    result = text_matrix ^ key_matrix_0
 
     results = [result.copy()]
 
@@ -241,68 +194,29 @@ def AES(text: str, f_keys: list, debug=False):
         # sub bytes
         result = sub_bytes(result)
 
-        if debug:
-            print('\nSub Bytes')
-            print_matrix(result)
-
         # shift rows
         result = shift_rows(result)
-
-        if debug:
-            print('\nShift Rows')
-            print_matrix(result)
 
         # mix columns
         result = mix_column(fixed_matrix, result)
 
-        if debug:
-            print('\nMix Columns')
-            print_matrix(result)
-
         # add round key
-
-        result = add_round_key(result, i, f_keys)
-
-        if debug:
-            print('\nAdd Round Key')
-            print_matrix(result)
+        result = add_round_key(result, i, keys)
 
         results.append(result.copy())
 
     # last round
+
     # sub bytes
     result = sub_bytes(result)
-
-    if debug:
-        print('\nSub Bytes')
-        print_matrix(result)
 
     # shift rows
     result = shift_rows(result)
 
-    if debug:
-        print('\nShift Rows')
-        print_matrix(result)
-
     # add round key
-    result = add_round_key(result, 10, f_keys)
+    result = add_round_key(result, 10, keys)
 
     results.append(result)
-
-    if debug:
-        print('\nAdd Round Key')
-        print_matrix(result)
-
-    if debug:
-        print('Round outputs')
-        for i in range(len(results)):
-            print(f'Round {i}:', end=' ')
-            l = []
-            for j in range(4):
-                for k in range(4):
-                    print(f'{get_padded(str(hex(results[i][k][j]))[2:])}', end=' ')
-
-            print('')
 
     cipher_text = ''
     for i in range(4):
@@ -316,10 +230,7 @@ def AES(text: str, f_keys: list, debug=False):
     }
 
 
-def InvAES(cipher_text: str, keys: list, debug=False):
-    if len(cipher_text) < 16:
-        cipher_text += ' ' * (16 - len(cipher_text))
-
+def InvAES(cipher_text: str, keys: list):
     hex_text = []
     for i in range(16):
         hex_text.append(ord(cipher_text[i]))
@@ -328,41 +239,20 @@ def InvAES(cipher_text: str, keys: list, debug=False):
     key_matrix_0 = np.array(keys[10]).reshape(4, 4).T
     result = text_matrix ^ key_matrix_0
 
-    if debug:
-        print_matrix(result)
-        print('')
-
     results = [result.copy()]
 
     for i in range(9, 0, -1):
-
         # inverse shift rows
         result = inverse_shift_rows(result)
-
-        if debug:
-            print('\nInverse Shift Rows')
-            print_matrix(result)
 
         # inverse sub bytes
         result = inverse_sub_bytes(result)
 
-        if debug:
-            print('\nInverse Sub Bytes')
-            print_matrix(result)
-
         # add round key
         result = add_round_key(result, i, keys)
 
-        if debug:
-            print('\nAdd Round Key')
-            print_matrix(result)
-
         # inverse mix columns
         result = mix_column(fixed_inverse_matrix, result)
-
-        if debug:
-            print('\nInverse Mix Columns')
-            print_matrix(result)
 
         results.append(result.copy())
 
@@ -370,36 +260,13 @@ def InvAES(cipher_text: str, keys: list, debug=False):
     # inverse shift rows
     result = inverse_shift_rows(result)
 
-    if debug:
-        print('\nInverse Shift Rows')
-        print_matrix(result)
-
     # inverse sub bytes
     result = inverse_sub_bytes(result)
-
-    if debug:
-        print('\nInverse Sub Bytes')
-        print_matrix(result)
 
     # add round key
     result = add_round_key(result, 0, keys)
 
-    if debug:
-        print('\nAdd Round Key')
-        print_matrix(result)
-
     results.append(result)
-
-    if debug:
-        print('Round outputs')
-        for i in range(len(results)):
-            print(f'Round {i}:', end=' ')
-            l = []
-            for j in range(4):
-                for k in range(4):
-                    print(f'{get_padded(str(hex(results[i][k][j]))[2:])}', end=' ')
-
-            print('')
 
     plain_text = ''
     for i in range(4):
@@ -413,7 +280,7 @@ def InvAES(cipher_text: str, keys: list, debug=False):
     }
 
 
-def encrypt(text: str, keys: list, debug=False):
+def encrypt(text: str, keys: list):
     start = time.time()
 
     texts = []
@@ -422,7 +289,7 @@ def encrypt(text: str, keys: list, debug=False):
 
     cipher_texts = []
     for t in texts:
-        result = AES(t, keys, debug)
+        result = AES(t, keys)
         cipher_texts.append(result['cipher_text'])
 
     cipher_text = ''
@@ -437,7 +304,7 @@ def encrypt(text: str, keys: list, debug=False):
     }
 
 
-def decrypt(cipher_text: str, keys: list, debug=False):
+def decrypt(cipher_text: str, keys: list):
     start = time.time()
 
     texts = []
@@ -446,7 +313,7 @@ def decrypt(cipher_text: str, keys: list, debug=False):
 
     plain_texts = []
     for t in texts:
-        res = InvAES(t, keys, debug)
+        res = InvAES(t, keys)
         plain_texts.append(res['text'])
 
     plain_text = ''

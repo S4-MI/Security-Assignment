@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-#!pip install BitVector
+# !pip install BitVector
 
 """Tables"""
 
@@ -46,37 +46,6 @@ InvSbox = (
     0x17, 0x2B, 0x04, 0x7E, 0xBA, 0x77, 0xD6, 0x26, 0xE1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0C, 0x7D,
 )
 
-# # sample mapping i.e. For an element {d1} corresponding value is {3e} from s-box (look slide : 48 of Cryptography Slide)
-# b_bin = BitVector(hexstring="d1")
-# # print("b_bin :",b_bin)
-# b_int = b_bin.intValue()
-# # print("b_int :",b_int)
-# s_int = Sbox[b_int]
-# # print("s_int :",s_int)
-# s_bin = BitVector(intVal=s_int, size=8)
-# # print("s_bin :",s_bin)
-# print("s_hex :",s_bin.get_bitvector_in_hex())
-#
-# print("---------------------------------------")
-# # sample mapping i.e. For an element {3e} corresponding value is {d1} from Inv-s-box (look slide : 49 of Cryptography Slide)
-# b_bin = BitVector(hexstring="3e")
-# # print("b_bin :",b_bin)
-# b_int = b_bin.intValue()
-# # print("b_int :",b_int)
-# s_int = InvSbox[b_int]
-# # print("s_int :",s_int)
-# s_bin = BitVector(intVal=s_int, size=8)
-# # print("s_bin :",s_bin)
-# print("s_hex :",s_bin.get_bitvector_in_hex())
-#
-#
-#
-#
-#
-#
-# print("\n======================================n")
-
-
 # Contstant Matrix Required For Using in MixColumn Step
 Mixer = [
     [BitVector(hexstring="02"), BitVector(hexstring="03"), BitVector(hexstring="01"), BitVector(hexstring="01")],
@@ -85,7 +54,7 @@ Mixer = [
     [BitVector(hexstring="03"), BitVector(hexstring="01"), BitVector(hexstring="01"), BitVector(hexstring="02")]
 ]
 
-# Contstant Matrix Required For Using in InvMixColumn Step
+# Constant Matrix Required For Using in InvMixColumn Step
 InvMixer = [
     [BitVector(hexstring="0E"), BitVector(hexstring="0B"), BitVector(hexstring="0D"), BitVector(hexstring="09")],
     [BitVector(hexstring="09"), BitVector(hexstring="0E"), BitVector(hexstring="0B"), BitVector(hexstring="0D")],
@@ -96,7 +65,7 @@ InvMixer = [
 AES_modulus = BitVector(bitstring='100011011')  # Don't Change this. Use as it is as a constant
 
 
-def perform_mix_column(vector1, vector2):
+def matrix_mul(vector1, vector2):
     mix00 = BitVector(hexstring=vector1[0])
     st00 = BitVector(hexstring=vector2[0])
     a = st00.gf_multiply_modular(mix00, AES_modulus, 8)
@@ -116,8 +85,3 @@ def perform_mix_column(vector1, vector2):
     res00 = (a.intValue() ^ b.intValue()) ^ (c.intValue() ^ d.intValue())
 
     return res00
-
-# print("res00_int :",res00)
-# print("res00hex :",hex(res00))
-
-# For InvMixColumn Step : You_Know_How       (Credit@ You_Know_Who)

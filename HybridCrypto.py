@@ -1,6 +1,7 @@
 import os
 import socket
 import threading
+from time import sleep
 
 from AES import encrypt, key_expansion, decrypt
 from RSA import generate_keypair, encrypt as rsa_encrypt, decrypt as rsa_decrypt
@@ -25,8 +26,6 @@ def write_key(private_key):
 def generate_write_and_get_key():
     key_result = generate_keypair(16)
     public_key, private_key = key_result['keys']
-    # print("\nPublic Key: (e, n) =", public_key)
-    # print("Private key: (d, n) =", private_key)
 
     write_key(private_key)
     return public_key
@@ -60,11 +59,11 @@ def handle_client(client1, client2):
     client1_socket, client1_address = client1
     client2_socket, client2_address = client2
 
-    print('in handle client')
-
     try:
         client1_socket.sendall(b'1')
+        sleep(1)
         client2_socket.sendall(b'2')
+        sleep(1)
     except ConnectionResetError:
         print('Connection Error')
         client1_socket.close()
@@ -72,48 +71,51 @@ def handle_client(client1, client2):
         return
 
     turn = 1
-
     while True:
+        print('Turn:', turn)
         try:
-            if turn:
-                data = client1_socket.recv(1024)
-                if not data:
+            if turn == 1:
+                data1 = client1_socket.recv(1024)
+                if not data1:
                     print('Connection Error in 1st message')
                     break
-                message = data.decode()
+                message = data1.decode()
                 print(f'Message from 1st user {message}')
-                client2_socket.sendall(data)
 
-                data = client1_socket.recv(1024)
-                if not data:
+                data2 = client1_socket.recv(1024)
+                if not data2:
                     print('Connection Error in 2nd message')
                     break
-                message = data.decode()
+
+                message = data2.decode()
                 print(f'Message from 1st user {message}')
-                client2_socket.sendall(data)
+
+                client2_socket.sendall(data1)
+                sleep(1)
+                client2_socket.sendall(data2)
+                sleep(1)
                 print('\n')
                 turn = 0
 
             else:
-                data = client2_socket.recv(1024)
-                if not data:
+                data1 = client2_socket.recv(1024)
+                if not data1:
                     print('Connection Error 1st message')
                     break
-                message = data.decode()
-
+                message = data1.decode()
                 print(f'Message from 2nd user {message}')
-                client1_socket.sendall(data)
 
-                data = client2_socket.recv(1024)
-                if not data:
+                data2 = client2_socket.recv(1024)
+                if not data2:
                     print('Connection Error 2nd message')
                     break
-
-                message = data.decode()
-
+                message = data2.decode()
                 print(f'Message from 2nd user {message}')
-                client1_socket.sendall(data)
 
+                client1_socket.sendall(data1)
+                sleep(1)
+                client1_socket.sendall(data2)
+                sleep(1)
                 print('\n')
                 turn = 1
 
@@ -144,6 +146,7 @@ def start_server(host, port):
                 args=(clients[-2], clients[-1])
             )
             client_handler.start()
+            clients = []
 
 
 def handle_get_message(client_socket):
@@ -170,15 +173,16 @@ def handle_get_message(client_socket):
 
 
 def handle_send_message(client_socket, message: str):
+    print('Sending message...')
     key = AES_KEY
     encrypted_message = encrypt_message(message=message, key=key)
     encrypted_key = encrypt_key(key=key)
 
     try:
         client_socket.sendall(encrypted_message.encode())
-        print('Message sent')
+        sleep(1)
         client_socket.sendall(encrypted_key.encode())
-        print('Key sent')
+        sleep(1)
     except ConnectionResetError:
         print('Connection Error')
         return False
@@ -221,11 +225,11 @@ def start_client(host, port):
 def main():
     mode = input("Choose mode - 'server' or 'client': ").lower()
 
-    if mode == "s":
+    if mode == "server":
         host = '127.0.0.1'
         port = 9000
         start_server(host, port)
-    elif mode == "c":
+    elif mode == "client":
         host = '127.0.0.1'
         port = 9000
         start_client(host, port)
@@ -233,23 +237,5 @@ def main():
         print("Invalid mode. Choose 'server' or 'client'.")
 
 
-def test():
-    key = AES_KEY
-    encrypted_message = encrypt_message(message='Two One Nine Two', key=key)
-    encrypted_key = encrypt_key(key=key)
-
-    print(f"Encrypted Message: {encrypted_message}")
-    print(f"Encrypted Key: {encrypted_key}")
-
-    cipher_text = encrypted_message
-    encrypted_key = eval(encrypted_key)
-
-    key = decrypt_key(encrypted_key)
-    message = decrypt_message(encrypted_message=cipher_text, key=key)
-
-    print(f"Decrypted Message: {message}")
-
-
 if __name__ == "__main__":
-    # test()
     main()
