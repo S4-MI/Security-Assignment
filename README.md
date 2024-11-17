@@ -2,10 +2,10 @@
 
 ## Assignment 02
 
-Submitted by:
-Name: Rubayet Sadman Sami
-Reg: 2019331063
-Session: 2019-20
+Submitted by:   
+Name: Rubayet Sadman Sami   
+Reg: 2019331063   
+Session: 2019-20   
 
 ### Report of Task - 1
 
